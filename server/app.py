@@ -1,17 +1,18 @@
-import os
 from flask import Flask, jsonify
+from flask_migrate import Migrate
 from flask_restful import Api, Resource
-from dotenv import load_dotenv
 from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations, InventoryItems
 
-load_dotenv()
 
 app = Flask(__name__)
 
-# Configure the database connection
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://myuser:mypassword@localhost/mydatabase"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db.init_app(app)
+
+migrate = Migrate(app, db)
 api = Api(app)
 
 
