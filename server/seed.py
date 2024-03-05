@@ -1,13 +1,11 @@
 from flask import Flask
 from faker import Faker
 from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations, InventoryItems
+from app import create_app
 import random
 import datetime
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://myuser:mypassword@localhost/mydatabase"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
+app = create_app()
 fake = Faker()
 
 
@@ -220,32 +218,34 @@ def seed_inventory_items(num_items, num_charities):
         db.session.commit()
 
 if __name__ == '__main__':
-    num_users = 50
-    num_charities = 20
-    num_donations = 100
-    num_stories = 50
-    num_beneficiaries = 50
-    num_admins = 5
-    num_items = 100
-    num_reviews = 100
-    num_words = 100
-    num_transactions = 100
-    num_methods = 50
-    num_settings = 50
-    num_regular_donations = 50
-    num_inventory_items = 100
+    with app.app_context():
+        db.create_all()
+        num_users = 50
+        num_charities = 20
+        num_donations = 100
+        num_stories = 50
+        num_beneficiaries = 50
+        num_admins = 5
+        num_items = 100
+        num_reviews = 100
+        num_words = 100
+        num_transactions = 100
+        num_methods = 50
+        num_settings = 50
+        num_regular_donations = 50
+        num_inventory_items = 100
 
-    seed_users(num_users)
-    seed_charities(num_charities)
-    seed_donations(num_donations, num_users, num_charities)
-    seed_stories(num_stories, num_charities)
-    seed_beneficiaries(num_beneficiaries, num_charities)
-    seed_admins(num_admins)
-    seed_items(num_items, num_charities)
-    seed_reviews(num_reviews, num_users, num_charities)
-    seed_words_of_support(num_words, num_users, num_charities)
-    seed_payment_transactions(num_transactions, num_users, num_charities)
-    seed_donor_payment_methods(num_methods, num_users)
-    seed_reminder_settings(num_settings, num_users, num_charities)
-    seed_regular_donations(num_regular_donations, num_users, num_charities)
-    seed_inventory_items(num_inventory_items, num_charities)
+        seed_users(num_users)
+        seed_charities(num_charities)
+        seed_donations(num_donations, num_users, num_charities)
+        seed_stories(num_stories, num_charities)
+        seed_beneficiaries(num_beneficiaries, num_charities)
+        seed_admins(num_admins)
+        seed_items(num_items, num_charities)
+        seed_reviews(num_reviews, num_users, num_charities)
+        seed_words_of_support(num_words, num_users, num_charities)
+        seed_payment_transactions(num_transactions, num_users, num_charities)
+        seed_donor_payment_methods(num_methods, num_users)
+        seed_reminder_settings(num_settings, num_users, num_charities)
+        seed_regular_donations(num_regular_donations, num_users, num_charities)
+        seed_inventory_items(num_inventory_items, num_charities)
