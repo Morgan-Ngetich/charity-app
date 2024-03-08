@@ -7,21 +7,45 @@ class Users(db.Model):
     username = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True)
     password = db.Column(db.String(255), nullable=False)
+    image_url = db.Column(db.String(255))
     role = db.Column(db.String(255), nullable=False)
 
+    # Relationship with Admins table
+    admin_relation = db.relationship('Admins', backref='admin_user', uselist=False, overlaps="admin_relation")
+
+    
     def serialize(self):
         return {
             'user_id': self.user_id,
             'username': self.username,
             'email': self.email,
+            'image_url': self.image_url,
             'role': self.role
         }
 
+class Admins(db.Model):
+    admin_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+
+    # The relationship with the Users table
+    user = db.relationship('Users', backref='admin', uselist=False, overlaps="admin_relation")
+    
+    
+    def serialize(self):
+        user_data = self.user.serialize() if self.user is not None else None
+        return {
+            'admin_id': self.admin_id,
+            'user': user_data
+        }
+
+        
 class Charities(db.Model):
     charity_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    website = db.Column(db.String(255))
+    image_url = db.Column(db.String(255))
+    goal = db.Column(db.Float, nullable=False, default=0.0)
+    raised = db.Column(db.Float, nullable=False, default=0.0)
     approved = db.Column(db.Boolean, default=False)
 
     def serialize(self):
@@ -29,7 +53,9 @@ class Charities(db.Model):
             'charity_id': self.charity_id,
             'name': self.name,
             'description': self.description,
-            'website': self.website,
+            'image_url': self.image_url,
+            'goal': self.goal,
+            'raised': self.raised,
             'approved': self.approved
         }
 
@@ -77,6 +103,7 @@ class Beneficiaries(db.Model):
     description = db.Column(db.Text, nullable=False)
     charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id'), nullable=False)
     inventory_sent = db.Column(db.Boolean, default=False)
+    image_url = db.Column(db.String(255))
 
     def serialize(self):
         return {
@@ -84,20 +111,8 @@ class Beneficiaries(db.Model):
             'name': self.name,
             'description': self.description,
             'charity_id': self.charity_id,
-            'inventory_sent': self.inventory_sent
-        }
-
-class Admins(db.Model):
-    admin_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    username = db.Column(db.String(255), nullable=False)
-    email = db.Column(db.String(255), nullable=False, unique=True)
-    password = db.Column(db.String(255), nullable=False)
-
-    def serialize(self):
-        return {
-            'admin_id': self.admin_id,
-            'username': self.username,
-            'email': self.email
+            'inventory_sent': self.inventory_sent,
+            'image_url': self.image_url
         }
 
 class Items(db.Model):
@@ -106,6 +121,7 @@ class Items(db.Model):
     description = db.Column(db.Text, nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id'), nullable=False)
+    image_url = db.Column(db.String(255))
 
     def serialize(self):
         return {
@@ -113,7 +129,8 @@ class Items(db.Model):
             'name': self.name,
             'description': self.description,
             'quantity': self.quantity,
-            'charity_id': self.charity_id
+            'charity_id': self.charity_id,
+            'image_url': self.image_url
         }
 
 class Reviews(db.Model):
@@ -218,20 +235,4 @@ class RegularDonations(db.Model):
             'end_date': self.end_date.strftime('%Y-%m-%d') if self.end_date else None
         }
 
-class InventoryItems(db.Model):
-    item_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    quantity_received = db.Column(db.Integer, nullable=False)
-    quantity_requested = db.Column(db.Integer, nullable=False)
-    charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id'), nullable=False)
 
-    def serialize(self):
-        return {
-            'item_id': self.item_id,
-            'name': self.name,
-            'description': self.description,
-            'quantity_received': self.quantity_received,
-            'quantity_requested': self.quantity_requested,
-            'charity_id': self.charity_id
-        }

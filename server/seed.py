@@ -1,6 +1,6 @@
 from flask import Flask
 from faker import Faker
-from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations, InventoryItems
+from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
 from app import create_app
 import random
 import datetime
@@ -16,6 +16,7 @@ def seed_users(num_users):
                 username=fake.user_name(),
                 email=fake.email(),
                 password=fake.password(),
+                image_url=fake.image_url(),
                 role=random.choice(['donor', 'charity']),
             )
             db.session.add(user)
@@ -27,7 +28,9 @@ def seed_charities(num_charities):
             charity = Charities(
                 name=fake.company(),
                 description=fake.text(),
-                website=fake.url(),
+                image_url=fake.image_url(),
+                goal=random.uniform(1000.0, 50000.0),  # Random goal amount between 1000 and 10000
+                raised=random.uniform(0.0, 45000.0),    # Random raised amount between 0 and 5000
                 approved=True
             )
             db.session.add(charity)
@@ -75,21 +78,23 @@ def seed_beneficiaries(num_beneficiaries, num_charities):
                 name=fake.name(),
                 description=fake.text(),
                 charity_id=charity.charity_id,
-                inventory_sent=random.choice([True, False])
+                inventory_sent=random.choice([True, False]),
+                image_url=fake.image_url()
             )
             db.session.add(beneficiary)
         db.session.commit()
 
 def seed_admins(num_admins):
     with app.app_context():
+        users = Users.query.all()
         for _ in range(num_admins):
+            user = random.choice(users)
             admin = Admins(
-                username=fake.user_name(),
-                email=fake.email(),
-                password=fake.password()
+                user_id=user.user_id
             )
             db.session.add(admin)
         db.session.commit()
+
 
 def seed_items(num_items, num_charities):
     with app.app_context():
@@ -100,7 +105,8 @@ def seed_items(num_items, num_charities):
                 name=fake.word(),
                 description=fake.text(),
                 quantity=random.randint(1, 100),
-                charity_id=charity.charity_id
+                charity_id=charity.charity_id,
+                image_url=fake.image_url()
             )
             db.session.add(item)
         db.session.commit()
@@ -202,38 +208,24 @@ def seed_regular_donations(num_donations, num_users, num_charities):
             db.session.add(donation)
         db.session.commit()
 
-def seed_inventory_items(num_items, num_charities):
-    with app.app_context():
-        charities = Charities.query.all()
-        for _ in range(num_items):
-            charity = random.choice(charities)
-            item = InventoryItems(
-                name=fake.word(),
-                description=fake.text(),
-                quantity_received=random.randint(1, 100),
-                quantity_requested=random.randint(1, 100),
-                charity_id=charity.charity_id
-            )
-            db.session.add(item)
-        db.session.commit()
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        num_users = 50
+        num_users = 20
         num_charities = 20
         num_donations = 100
         num_stories = 50
         num_beneficiaries = 50
         num_admins = 5
-        num_items = 100
+        num_items = 10
         num_reviews = 100
         num_words = 100
         num_transactions = 100
         num_methods = 50
         num_settings = 50
         num_regular_donations = 50
-        num_inventory_items = 100
+        
 
         seed_users(num_users)
         seed_charities(num_charities)
@@ -248,4 +240,3 @@ if __name__ == '__main__':
         seed_donor_payment_methods(num_methods, num_users)
         seed_reminder_settings(num_settings, num_users, num_charities)
         seed_regular_donations(num_regular_donations, num_users, num_charities)
-        seed_inventory_items(num_inventory_items, num_charities)
