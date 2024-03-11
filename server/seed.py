@@ -1,6 +1,6 @@
 from flask import Flask
 from faker import Faker
-from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
+from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, ContactDetails, Message, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
 from app import create_app
 import random
 import datetime
@@ -31,9 +31,39 @@ def seed_charities(num_charities):
                 image_url=fake.image_url(),
                 goal=random.uniform(1000.0, 50000.0),  # Random goal amount between 1000 and 10000
                 raised=random.uniform(0.0, 45000.0),    # Random raised amount between 0 and 5000
+                mission=fake.sentence(), 
                 approved=True
             )
             db.session.add(charity)
+        db.session.commit()
+        
+def seed_contact_details(num_contact_details):
+    with app.app_context():
+        charities = Charities.query.all()
+        for _ in range(num_contact_details):
+            charity = random.choice(charities)
+            contact_details = ContactDetails(
+                charity_id=charity.charity_id,
+                phone_number=fake.phone_number(),
+                charity_email=fake.email(),
+                map_details=fake.url(),
+                date=datetime.datetime.utcnow()
+            )
+            db.session.add(contact_details)
+        db.session.commit()
+        
+def seed_messages(num_messages):
+    with app.app_context():
+        contact_details = ContactDetails.query.all()
+        for _ in range(num_messages):
+            contact_detail = random.choice(contact_details)
+            message = Message(
+                user_id=random.randint(1, 10),  # Assuming there are 10 users in the database
+                message=fake.text(),
+                date=datetime.datetime.utcnow(),
+                contact_details_id=contact_detail.id
+            )
+            db.session.add(message)
         db.session.commit()
 
 def seed_donations(num_donations, num_users, num_charities):
@@ -214,6 +244,8 @@ if __name__ == '__main__':
         db.create_all()
         num_users = 20
         num_charities = 20
+        num_contact_details = 10
+        num_messages = 100
         num_donations = 100
         num_stories = 50
         num_beneficiaries = 50
@@ -229,6 +261,8 @@ if __name__ == '__main__':
 
         seed_users(num_users)
         seed_charities(num_charities)
+        seed_contact_details(num_contact_details)
+        seed_messages(num_messages)
         seed_donations(num_donations, num_users, num_charities)
         seed_stories(num_stories, num_charities)
         seed_beneficiaries(num_beneficiaries, num_charities)

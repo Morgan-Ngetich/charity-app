@@ -1,29 +1,153 @@
 from dotenv import load_dotenv
 import os
-
-# Load environment variables from .env file
-load_dotenv()
-
-from flask import Flask, jsonify,request
+import binascii
+from datetime import timedelta
+from flask import Flask, jsonify, request
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
-from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
+from flask_mail import Mail, Message
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, create_refresh_token,get_jwt
+import bcrypt
+
+from wtforms import Form, StringField, PasswordField, validators
+from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, ContactDetails, Message, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
+
+
 
 def create_app():
-    app = Flask(__name__)
-
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")    
-    # postgresql://morgan:NOhjcmrCFktlDbndyvn15sQSsMficRSK@dpg-cnl92mmv3ddc73f6ob9g-a.oregon-postgres.render.com/charity_8scx
+    app = Flask(__name__)   
+   
+    blacklist = set()  # Define the blacklist set for storing JWT tokens   
+    mail = Mail() # Initialize the Mail object
     
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Load environment variables from .env file
+    load_dotenv()
 
+    # Set JWT secret key if not already set
+    if 'JWT_SECRET_KEY' not in os.environ:
+        os.environ['JWT_SECRET_KEY'] = binascii.hexlify(os.urandom(32)).decode()
+        
+    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Short expiration time for access token
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)   # Longer expiration time for refresh token
+
+    # Configure database
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+    # postgresql://morgan:ZdfTJKVX0gKfp0BzPISV1qbCWrBAzZXb@dpg-cnn80e821fec739aa22g-a.oregon-postgres.render.com/charity_tcim
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
+
+    # Configure mail
+    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+    app.config['MAIL_PORT'] = 465
+    app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USE_SSL'] = False
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    mail = Mail(app)
+
+    # Configure JWT
+    jwt = JWTManager(app)
 
     migrate = Migrate(app, db)
     api = Api(app)
+    
+    
+    class SignupForm(Form):
+        email = StringField('Email', validators=[validators.Email()])
+        password = PasswordField('Password', validators=[
+            validators.DataRequired(),
+            validators.Length(min=8, message='Password must be at least 8 characters long'),
+            validators.EqualTo('confirm_password', message='Passwords must match')
+        ])
+        confirm_password = PasswordField('Confirm Password', validators=[validators.DataRequired()])
+
+    class LoginForm(Form):
+        email = StringField('Email', validators=[validators.Email()])
+        password = PasswordField('Password', validators=[validators.DataRequired()])
+
+    def validate_token(token):
+        return token['jti'] in blacklist
+
+    # Send message email function
+    def send_message_email(user_id, charity_email, message, charity_name, charity_mission):
+        user = Users.query.get(user_id)
+        if not user:
+            raise ValueError('User not found')
+        sender_email = user.email
+
+        try:
+            # Send email to charity
+            msg_to_charity = Message(subject='New Message from a User', sender=sender_email, recipients=[charity_email])
+            msg_to_charity.body = f'New message from a user: {message}'
+            mail.send(msg_to_charity)
+
+            # Send email to user
+            msg_to_user = Message(subject='Your Support Means the World to Us!', sender=[charity_email], recipients=[sender_email])
+            msg_to_user.body = f"""Dear {user.username},\n\nThank you for reaching out to {charity_name}! We've received your message and are grateful for your interest in supporting our cause.\n\nYour generosity can make a real difference in the lives of those we serve. Please consider making a donation today to help us continue our mission of {charity_mission}.\n\nClick here to donate now and make an impact: [Donation Link]\n\nYour support is invaluable to us, and we appreciate your commitment to making the world a better place.\n\nThank you for being a part of our journey.\n\nWarm regards,\nThe {charity_name} Team"""
+            mail.send(msg_to_user)
+        except Exception as e:
+            # Handle email sending error
+            app.logger.error(f"Error sending email: {e}")
+            raise
+
+        return None
 
 
+    # Define API resources
+    @app.route('/signup', methods=['POST'])
+    def signup():
+        form = SignupForm()
+        if form.validate_on_submit():
+            email = form.email.data
+            password = form.password.data
 
+            if Users.query.filter_by(email=email).first():
+                return jsonify(message='User already exists'), 400
+
+            new_user = Users(email=email, password=bcrypt.generate_password_hash(password).decode('utf-8'))
+            db.session.add(new_user)
+            db.session.commit()
+
+            access_token = create_access_token(identity=email)
+            return jsonify(access_token=access_token), 201
+        else:
+            return jsonify(errors=form.errors), 400
+
+    @app.route('/login', methods=['POST'])
+    def login():
+        form = LoginForm()
+        if form.validate_on_submit():
+            email = form.email.data
+            password = form.password.data
+
+            user = Users.query.filter_by(email=email).first()
+            if user and bcrypt.check_password_hash(user.password, password):
+                access_token = create_access_token(identity=email)
+                refresh_token = create_refresh_token(identity=email)
+                return jsonify(access_token=access_token, refresh_token=refresh_token), 200
+            else:
+                return jsonify(message='Invalid email or password'), 401
+        else:
+            return jsonify(errors=form.errors), 400
+        
+    
+    @app.route('/refresh', methods=['POST'])
+    @jwt_required(refresh=True)
+    def refresh():
+        current_user = get_jwt_identity()
+        access_token = create_access_token(identity=current_user)
+        return jsonify(access_token=access_token), 200
+
+    @app.route('/logout', methods=['POST'])
+    @jwt_required()
+    def logout():
+        jti = get_jwt()['jti']
+        blacklist.add(jti)
+        return jsonify(message='Successfully logged out'), 200
+    
+    
+    
     # Define API resources
     class UsersResource(Resource):
         def get(self):
@@ -71,7 +195,15 @@ def create_app():
     class CharitiesResource(Resource):
         def get(self):
             charities = Charities.query.all()
-            return jsonify([charity.serialize() for charity in charities])
+            charities_data = []
+            for charity in charities:
+                contact_details = ContactDetails.query.filter_by(charity_id=charity.charity_id).all()
+                messages = Message.query.filter_by(charity_id=charity.charity_id).all()
+                charity_data = charity.serialize()
+                charity_data['contact_details'] = [contact.serialize() for contact in contact_details]
+                charity_data['messages'] = [message.serialize() for message in messages]
+                charities_data.append(charity_data)
+            return jsonify(charities_data)
 
         def post(self):
             data = request.json
@@ -86,10 +218,21 @@ def create_app():
     class CharityDetailResource(Resource):
         def get(self, charity_id):
             charity = Charities.query.get(charity_id)
-            if charity:
-                return jsonify(charity.serialize())
-            else:
+            if not charity:
                 return {'message': 'Charity not found'}, 404
+
+            # Get contact details for the charity
+            contact_details = ContactDetails.query.filter_by(charity_id=charity_id).all()
+
+            # Get messages for the charity
+            messages = Message.query.filter_by(charity_id=charity_id).all()
+
+            # Serialize charity, contact details, and messages
+            charity_data = charity.serialize()
+            charity_data['contact_details'] = [contact.serialize() for contact in contact_details]
+            charity_data['messages'] = [message.serialize() for message in messages]
+
+            return jsonify(charity_data)
 
         def put(self, charity_id):
             data = request.json
@@ -108,6 +251,46 @@ def create_app():
             db.session.delete(charity)
             db.session.commit()
             return {'message': 'Charity deleted successfully'}, 200
+        
+        
+    class SendMessageResource(Resource):
+        def post(self, charity_id):
+            data = request.json
+            message_text = data.get('message')
+            user_id = data.get('user_id')
+
+            # Check if user_id and charity_id are valid
+            user = Users.query.get(user_id)
+            if not user:
+                return {'message': 'User not found'}, 404
+
+            charity = Charities.query.get(charity_id)
+            if not charity:
+                return {'message': 'Charity not found'}, 404
+
+            try:
+                # Check if the charity has existing contact details
+                contact_details = ContactDetails.query.filter_by(charity_id=charity_id).first()
+                if not contact_details:
+                    # Create new contact details if none exist
+                    contact_details = ContactDetails(charity_id=charity_id)
+                    db.session.add(contact_details)
+                    db.session.commit()
+
+                # Save message to the database
+                new_message = Message(user_id=user_id, message=message_text, contact_details_id=contact_details.id)
+                db.session.add(new_message)
+                db.session.commit()
+
+                # Send email to charity
+                send_message_email(user_id, charity.email, message_text)
+
+                return {'message': 'Message sent successfully'}, 200
+            except Exception as e:
+                # Handle email sending error
+                app.logger.error(f"Error sending email: {e}")
+                return {'message': 'An error occurred while sending the message'}, 500
+
 
 
     class DonationsResource(Resource):
@@ -579,6 +762,7 @@ def create_app():
     
     api.add_resource(CharitiesResource, '/charities')
     api.add_resource(CharityDetailResource, '/charities/<int:charity_id>')
+    api.add_resource(SendMessageResource, '/charities/<int:charity_id>/message')
     
     api.add_resource(DonationsResource, '/donations')
     api.add_resource(DonationDetailResource, '/donations/<int:donation_id>')

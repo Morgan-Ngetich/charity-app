@@ -1,4 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import relationship
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -11,7 +13,7 @@ class Users(db.Model):
     role = db.Column(db.String(255), nullable=False)
 
     # Relationship with Admins table
-    admin_relation = db.relationship('Admins', backref='admin_user', uselist=False, overlaps="admin_relation")
+    admin_relation = db.relationship('Admins', back_populates='user', uselist=False, overlaps="admin_relation")
 
     
     def serialize(self):
@@ -28,7 +30,7 @@ class Admins(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
 
     # The relationship with the Users table
-    user = db.relationship('Users', backref='admin', uselist=False, overlaps="admin_relation")
+    user = db.relationship('Users', back_populates='admin_relation', uselist=False, overlaps="admin_relation")
     
     
     def serialize(self):
@@ -37,8 +39,8 @@ class Admins(db.Model):
             'admin_id': self.admin_id,
             'user': user_data
         }
-
         
+
 class Charities(db.Model):
     charity_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), nullable=False)
@@ -46,7 +48,11 @@ class Charities(db.Model):
     image_url = db.Column(db.String(255))
     goal = db.Column(db.Float, nullable=False, default=0.0)
     raised = db.Column(db.Float, nullable=False, default=0.0)
+    mission = db.Column(db.String(255))  # Add the mission field
     approved = db.Column(db.Boolean, default=False)
+
+    # One-to-One relationship with ContactDetails
+    contact_details = relationship("ContactDetails", back_populates="charity", uselist=False)
 
     def serialize(self):
         return {
@@ -56,7 +62,54 @@ class Charities(db.Model):
             'image_url': self.image_url,
             'goal': self.goal,
             'raised': self.raised,
+            'mission': self.mission,
             'approved': self.approved
+        }
+
+
+class ContactDetails(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id'), nullable=False)
+    phone_number = db.Column(db.String(20), nullable=False)
+    charity_email = db.Column(db.String(255), nullable=False)
+    map_details = db.Column(db.String(255))
+    date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    charity = relationship("Charities", back_populates="contact_details") # One-to-One relationship with Charities
+    messages = relationship("Message", back_populates="contact_details") # One-to-One relationship with Messages
+
+    def serialize(self):
+        return {
+            'id': self.id,
+            'charity_id': self.charity_id,
+            'phone_number': self.phone_number,
+            'charity_email': self.charity_email,
+            'map_details': self.map_details,
+            'date': self.date.strftime('%Y-%m-%d %H:%M:%S'),
+            'messages': [msg.serialize() for msg in self.messages]
+        }
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    # One-to-Many relationship with ContactDetails
+    contact_details_id = db.Column(db.Integer, db.ForeignKey('contact_details.id'), nullable=False)
+    contact_details = relationship("ContactDetails", back_populates="messages")
+
+    
+    @property
+    def charity_id(self):
+        return self.contact_details.charity_id if self.contact_details else None
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'message': self.message,
+            'date': self.date.strftime('%Y-%m-%d %H:%M:%S')
         }
 
 class Donations(db.Model):

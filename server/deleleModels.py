@@ -1,5 +1,5 @@
 from app import create_app
-from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
+from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, ContactDetails, Message, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
 
 # Create the app instance
 app = create_app()
@@ -41,11 +41,14 @@ with app.app_context():
             # Delete all Donations
             db.session.query(Donations).delete()
 
+            # Delete all Messages
+            db.session.query(Message).delete()
+
+            # Delete all ContactDetails
+            db.session.query(ContactDetails).delete()
+
             # Delete all Charities
             db.session.query(Charities).delete()
-
-            # Delete all Users
-            db.session.query(Users).delete()
 
             # Commit the changes
             db.session.commit()
