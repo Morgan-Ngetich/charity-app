@@ -33,8 +33,8 @@ def create_app():
 
     # Configure database
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
-    # \]
-ul     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+   
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
 
     # Configure mail
