@@ -1,6 +1,4 @@
 # Ignore virtual environments
-venv/
-.env
 __pycache__/
 
 # Ignore compiled Python files
@@ -11,4 +9,5 @@ __pycache__/
 
 # Ignore local configuration
 config.py
+deleteModels.py
 
