@@ -20,10 +20,14 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField
 from wtforms.validators import InputRequired, Email, ValidationError
 
+from flask_caching import Cache
+# Initialize Flask-Caching
+cache = Cache()
 
 
 def create_app():
-    app = Flask(__name__)   
+    app = Flask(__name__) 
+    cache.init_app(app)  
    
     blacklist = set()  # Define the blacklist set for storing JWT tokens   
     mail = Mail() # Initialize the Mail object
@@ -73,8 +77,6 @@ def create_app():
                 validate_email(field.data)
             except EmailNotValidError:
                 raise ValidationError('Invalid email address')
-
-
     
 
 
@@ -155,8 +157,6 @@ def create_app():
         else:
             return jsonify(message="Invalid email or password"), 401
 
-
-
                             
     
     @app.route('/refresh', methods=['POST'])
@@ -177,6 +177,7 @@ def create_app():
     
     # Define API resources
     class UsersResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             users = Users.query.all()
             return jsonify([user.serialize() for user in users])
@@ -193,6 +194,7 @@ def create_app():
             return {'message': 'User created successfully'}, 201
 
     class UserDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, user_id):
             user = Users.query.get(user_id)
             if user:
@@ -220,6 +222,7 @@ def create_app():
 
 
     class CharitiesResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             charities = Charities.query.all()
             charities_data = []
@@ -273,6 +276,7 @@ def create_app():
 
 
     class CharityDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, charity_id):
             charity = Charities.query.get(charity_id)
             if not charity:
@@ -351,6 +355,7 @@ def create_app():
 
 
     class DonationsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             donations = Donations.query.all()
             return jsonify([donation.serialize() for donation in donations])
@@ -363,6 +368,7 @@ def create_app():
             return {'message': 'Donation created successfully'}, 201
 
     class DonationDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, donation_id):
             donation = Donations.query.get(donation_id)
             if donation:
@@ -390,6 +396,7 @@ def create_app():
 
 
     class StoriesResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             stories = Stories.query.all()
             return jsonify([story.serialize() for story in stories])
@@ -405,6 +412,7 @@ def create_app():
             return {'message': 'Story created successfully'}, 201
 
     class StoriesDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, story_id):
             story = Stories.query.get(story_id)
             if story:
@@ -431,6 +439,7 @@ def create_app():
             return {'message': 'Story deleted successfully'}, 200
 
     class BeneficiariesResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             beneficiaries = Beneficiaries.query.all()
             return jsonify([beneficiary.serialize() for beneficiary in beneficiaries])
@@ -446,6 +455,7 @@ def create_app():
             return {'message': 'Beneficiary created successfully'}, 201
 
     class BeneficiariesDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, beneficiary_id):
             beneficiary = Beneficiaries.query.get(beneficiary_id)
             if beneficiary:
@@ -473,6 +483,7 @@ def create_app():
 
 
     class AdminsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             admins = Admins.query.options(db.joinedload(Admins.user)).all()
             return jsonify([admin.serialize() for admin in admins])
@@ -489,6 +500,7 @@ def create_app():
             return {'message': 'Admin created successfully'}, 201
 
     class AdminsDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, admin_id):
             admin = Admins.query.get(admin_id)
             if admin:
@@ -599,6 +611,7 @@ def create_app():
             return {'message': 'Review deleted successfully'}, 200
 
     class WordsOfSupportResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             words_of_support = WordsOfSupport.query.all()
             return jsonify([support.serialize() for support in words_of_support])
@@ -615,6 +628,7 @@ def create_app():
             return {'message': 'Words of support created successfully'}, 201
 
     class WordsOfSupportDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, support_id):
             support = WordsOfSupport.query.get(support_id)
             if support:
@@ -644,6 +658,7 @@ def create_app():
 
 
     class PaymentTransactionsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             payment_transactions = PaymentTransactions.query.all()
             return jsonify([transaction.serialize() for transaction in payment_transactions])
@@ -660,6 +675,7 @@ def create_app():
             return {'message': 'Payment transaction created successfully'}, 201
 
     class PaymentTransactionsDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, transaction_id):
             transaction = PaymentTransactions.query.get(transaction_id)
             if transaction:
@@ -686,6 +702,7 @@ def create_app():
             return {'message': 'Payment transaction deleted successfully'}, 200
 
     class DonorPaymentMethodsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             donor_payment_methods = DonorPaymentMethods.query.all()
             return jsonify([method.serialize() for method in donor_payment_methods])
@@ -728,6 +745,7 @@ def create_app():
             return {'message': 'Donor payment method deleted successfully'}, 200
 
     class ReminderSettingsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             reminder_settings = ReminderSettings.query.all()
             return jsonify([setting.serialize() for setting in reminder_settings])
@@ -744,6 +762,7 @@ def create_app():
             return {'message': 'Reminder setting created successfully'}, 201
 
     class ReminderSettingsDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, setting_id):
             setting = ReminderSettings.query.get(setting_id)
             if setting:
@@ -770,6 +789,7 @@ def create_app():
             return {'message': 'Reminder setting deleted successfully'}, 200
 
     class RegularDonationsResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self):
             regular_donations = RegularDonations.query.all()
             return jsonify([donation.serialize() for donation in regular_donations])
@@ -786,6 +806,7 @@ def create_app():
             return {'message': 'Regular donation created successfully'}, 201
 
     class RegularDonationsDetailResource(Resource):
+        @cache.cached(timeout=3600)  # Cache for 1 hour
         def get(self, donation_id):
             donation = RegularDonations.query.get(donation_id)
             if donation:
