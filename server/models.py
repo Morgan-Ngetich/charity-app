@@ -8,22 +8,25 @@ class Users(db.Model):
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True)
+    phone_number = db.Column(db.String(255))
     password = db.Column(db.String(255), nullable=False)
     image_url = db.Column(db.String(255))
-    role = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(255), nullable=False, default="Donor")
 
     # Relationship with Admins table
     admin_relation = db.relationship('Admins', back_populates='user', uselist=False, overlaps="admin_relation")
 
-    
     def serialize(self):
-        return {
+        serialized_data = {
             'user_id': self.user_id,
             'username': self.username,
             'email': self.email,
             'image_url': self.image_url,
             'role': self.role
         }
+        if self.phone_number is not None:  # Check if phone_number is not None
+            serialized_data['phone_number'] = self.phone_number
+        return serialized_data
 
 class Admins(db.Model):
     admin_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -43,16 +46,17 @@ class Admins(db.Model):
 
 class Charities(db.Model):
     charity_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String, nullable=False)
     description = db.Column(db.Text, nullable=False)
-    image_url = db.Column(db.String(255))
+    image_url = db.Column(db.String)
     goal = db.Column(db.Float, nullable=False, default=0.0)
     raised = db.Column(db.Float, nullable=False, default=0.0)
-    mission = db.Column(db.String(255))  # Add the mission field
-    approved = db.Column(db.Boolean, default=False)
+    mission = db.Column(db.String)   
+    status = db.Column(db.String, nullable=False, default="Pending")  # Add status field with default value "Pending"
+    category = db.Column(db.String)  # Add category field
 
     # One-to-One relationship with ContactDetails
-    contact_details = relationship("ContactDetails", back_populates="charity", uselist=False)
+    contact_details = relationship("ContactDetails", back_populates="charity", uselist=False, cascade="all, delete-orphan")
 
     def serialize(self):
         return {
@@ -63,16 +67,16 @@ class Charities(db.Model):
             'goal': self.goal,
             'raised': self.raised,
             'mission': self.mission,
-            'approved': self.approved
+            'status':self.status,
+            'category':self.category            
         }
-
 
 class ContactDetails(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id'), nullable=False)
-    phone_number = db.Column(db.String(20), nullable=False)
-    charity_email = db.Column(db.String(255), nullable=False)
-    map_details = db.Column(db.String(255))
+    charity_id = db.Column(db.Integer, db.ForeignKey('charities.charity_id', ondelete='CASCADE'), nullable=False)
+    phone_number = db.Column(db.String, nullable=False)
+    charity_email = db.Column(db.String, nullable=False)
+    map_details = db.Column(db.String)
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     charity = relationship("Charities", back_populates="contact_details") # One-to-One relationship with Charities
@@ -96,14 +100,13 @@ class Message(db.Model):
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     # One-to-Many relationship with ContactDetails
-    contact_details_id = db.Column(db.Integer, db.ForeignKey('contact_details.id'), nullable=False)
+    contact_details_id = db.Column(db.Integer, db.ForeignKey('contact_details.id', ondelete='CASCADE'), nullable=False)
     contact_details = relationship("ContactDetails", back_populates="messages")
 
-    
     @property
     def charity_id(self):
         return self.contact_details.charity_id if self.contact_details else None
-    
+
     def serialize(self):
         return {
             'id': self.id,
@@ -111,6 +114,7 @@ class Message(db.Model):
             'message': self.message,
             'date': self.date.strftime('%Y-%m-%d %H:%M:%S')
         }
+
 
 class Donations(db.Model):
     donation_id = db.Column(db.Integer, primary_key=True, autoincrement=True)

@@ -15,6 +15,7 @@ def seed_users(num_users):
             user = Users(
                 username=fake.user_name(),
                 email=fake.email(),
+                phone_number=fake.phone_number(),  # Add phone_number field
                 password=fake.password(),
                 image_url=fake.image_url(),
                 role=random.choice(['donor', 'charity']),
@@ -29,10 +30,11 @@ def seed_charities(num_charities):
                 name=fake.company(),
                 description=fake.text(),
                 image_url=fake.image_url(),
-                goal=random.uniform(1000.0, 50000.0),  # Random goal amount between 1000 and 10000
-                raised=random.uniform(0.0, 45000.0),    # Random raised amount between 0 and 5000
-                mission=fake.sentence(), 
-                approved=True
+                goal=random.uniform(1000.0, 50000.0),
+                raised=random.uniform(0.0, 45000.0),
+                mission=fake.sentence(),
+                status="Pending",  # Set status field to "Pending"
+                category=fake.word()  # Add category field with fake data
             )
             db.session.add(charity)
         db.session.commit()
@@ -242,21 +244,21 @@ def seed_regular_donations(num_donations, num_users, num_charities):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        num_users = 20
-        num_charities = 20
-        num_contact_details = 10
-        num_messages = 100
-        num_donations = 100
-        num_stories = 50
-        num_beneficiaries = 50
+        num_users = 5
+        num_charities = 40
+        num_contact_details = 5
+        num_messages = 20
+        num_donations = 20
+        num_stories = 10
+        num_beneficiaries = 10
         num_admins = 5
         num_items = 10
-        num_reviews = 100
-        num_words = 100
-        num_transactions = 100
-        num_methods = 50
-        num_settings = 50
-        num_regular_donations = 50
+        num_reviews = 5
+        num_words = 5
+        num_transactions = 5
+        num_methods = 5
+        num_settings = 5
+        num_regular_donations = 5
         
 
         seed_users(num_users)

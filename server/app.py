@@ -1,16 +1,24 @@
 from dotenv import load_dotenv
 import os
+import json
 import binascii
 from datetime import timedelta
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response, session
 from flask_migrate import Migrate
-from flask_restful import Api, Resource
+from flask_restful import Api, Resource, reqparse 
 from flask_mail import Mail, Message
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, create_refresh_token,get_jwt
 import bcrypt
+from bcrypt import checkpw
+from werkzeug.security import check_password_hash
+from email_validator import validate_email, EmailNotValidError
 
-from wtforms import Form, StringField, PasswordField, validators
+from wtforms import Form, StringField, PasswordField, validators, ValidationError
 from models import db, Users, Charities, Donations, Stories, Beneficiaries, Admins, ContactDetails, Message, Items, Reviews, WordsOfSupport, PaymentTransactions, DonorPaymentMethods, ReminderSettings, RegularDonations
+
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField
+from wtforms.validators import InputRequired, Email, ValidationError
 
 
 
@@ -30,6 +38,7 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Short expiration time for access token
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)   # Longer expiration time for refresh token
+    app.config['WTF_CSRF_ENABLED'] = False
 
     # Configure database
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
@@ -53,18 +62,26 @@ def create_app():
     api = Api(app)
     
     
-    class SignupForm(Form):
-        email = StringField('Email', validators=[validators.Email()])
-        password = PasswordField('Password', validators=[
-            validators.DataRequired(),
-            validators.Length(min=8, message='Password must be at least 8 characters long'),
-            validators.EqualTo('confirm_password', message='Passwords must match')
-        ])
-        confirm_password = PasswordField('Confirm Password', validators=[validators.DataRequired()])
+    class SignupForm(Form):      
+        username = StringField('Username', validators=[validators.DataRequired()])
+        email = StringField('Email', validators=[validators.DataRequired(), validators.Email()])
+        password = PasswordField('Password', validators=[validators.DataRequired()])
+        phone_number = StringField('Phone Number')  # Optional field
+        
+        def validate_email(self, field):
+            try:
+                validate_email(field.data)
+            except EmailNotValidError:
+                raise ValidationError('Invalid email address')
+
+
+    
+
 
     class LoginForm(Form):
-        email = StringField('Email', validators=[validators.Email()])
-        password = PasswordField('Password', validators=[validators.DataRequired()])
+        email = StringField('Email', validators=[validators.InputRequired(), validators.Email()])
+        password = PasswordField('Password', validators=[validators.InputRequired()])
+
 
     def validate_token(token):
         return token['jti'] in blacklist
@@ -97,15 +114,20 @@ def create_app():
     # Define API resources
     @app.route('/signup', methods=['POST'])
     def signup():
-        form = SignupForm()
-        if form.validate_on_submit():
+        form_data = request.get_json()
+        form = SignupForm(data=form_data)
+        if form.validate():
+            username = form.username.data
+            phone_number = form.phone_number.data
             email = form.email.data
             password = form.password.data
 
             if Users.query.filter_by(email=email).first():
                 return jsonify(message='User already exists'), 400
 
-            new_user = Users(email=email, password=bcrypt.generate_password_hash(password).decode('utf-8'))
+            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+            new_user = Users(username=username, phone_number=phone_number, email=email, password=hashed_password.decode('utf-8'))
             db.session.add(new_user)
             db.session.commit()
 
@@ -116,21 +138,26 @@ def create_app():
 
     @app.route('/login', methods=['POST'])
     def login():
-        form = LoginForm()
-        if form.validate_on_submit():
-            email = form.email.data
-            password = form.password.data
-
-            user = Users.query.filter_by(email=email).first()
-            if user and bcrypt.check_password_hash(user.password, password):
-                access_token = create_access_token(identity=email)
-                refresh_token = create_refresh_token(identity=email)
-                return jsonify(access_token=access_token, refresh_token=refresh_token), 200
-            else:
-                return jsonify(message='Invalid email or password'), 401
-        else:
-            return jsonify(errors=form.errors), 400
+        data = request.get_json()
+        print("Request JSON data:", data)  # Print the entire request JSON data for debugging
         
+        email = data.get('email', {}).get('email', '')  # Access email from nested structure
+        password = data.get('email', {}).get('password', '')  # Access password from nested structure
+
+        if email == '' or password == '':
+            return jsonify(errors={"email": ["This field is required."], "password": ["This field is required."]}), 400
+
+        user = Users.query.filter_by(email=email).first()
+        if user and checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+            access_token = create_access_token(identity=email)
+            refresh_token = create_refresh_token(identity=email)           
+            return jsonify(access_token=access_token), 200
+        else:
+            return jsonify(message="Invalid email or password"), 401
+
+
+
+                            
     
     @app.route('/refresh', methods=['POST'])
     @jwt_required(refresh=True)
@@ -206,14 +233,44 @@ def create_app():
             return jsonify(charities_data)
 
         def post(self):
+            # Parse the request data from request.form
             data = request.json
-            charity = Charities.query.filter_by(name=data['name']).first()
-            if charity:
-                return {'message': 'Charity already exists'}, 400
-            new_charity = Charities(**data)
-            db.session.add(new_charity)
+            description = data.get('description')
+            goal = data.get('goal')
+            image_url = data.get('image_url')
+            mission = data.get('mission')
+            name = data.get('name')
+            raised = data.get('raised')
+            contact_details_data = data.get('contact_details')
+            status = data.get("status")
+            category = data.get("category")
+
+            charity = Charities(
+                description=description,
+                goal=goal,
+                image_url=image_url,
+                mission=mission,
+                name=name,
+                raised=raised,
+                status=status,
+                category=category                
+            )
+
+            for contact_detail_data in contact_details_data:
+                contact_detail = ContactDetails(
+                    phone_number=contact_detail_data.get('phone_number'),
+                    charity_email=contact_detail_data.get('charity_email'),
+                    map_details=contact_detail_data.get('map_details'),
+                    charity=charity
+                )
+                db.session.add(contact_detail)
+
+            db.session.add(charity)
             db.session.commit()
-            return {'message': 'Charity created successfully'}, 201
+
+            return make_response(jsonify({'message': 'Post created successfully'}), 201)
+
+
 
     class CharityDetailResource(Resource):
         def get(self, charity_id):
@@ -330,8 +387,6 @@ def create_app():
             db.session.delete(donation)
             db.session.commit()
             return {'message': 'Donation deleted successfully'}, 200
-
-
 
 
     class StoriesResource(Resource):
